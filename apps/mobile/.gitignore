@@ -36,9 +36,14 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# Native build artifacts (keep ios/ source tracked for EAS + custom native modules)
+/ios/Pods/
+/ios/build/
+/ios/.xcode.env.local
+/ios/DerivedData/
+/android/build/
+/android/.gradle/
+/android/app/build/
 
 # vendor-shared must be committed for EAS builds (self-contained, no workspace symlinks)
 !vendor-shared/

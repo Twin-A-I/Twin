@@ -1,3 +1,6 @@
+// Force Metro to treat apps/mobile as the server root during EAS monorepo builds.
+process.env.EXPO_NO_METRO_WORKSPACE_ROOT = '1';
+
 // Learn more https://docs.expo.dev/guides/customizing-metro
 if (!Array.prototype.toReversed) {
   // Metro uses ES2023 array helpers; keep local builds working on older Node.
@@ -11,32 +14,34 @@ if (!Array.prototype.toReversed) {
 }
 
 const { getDefaultConfig } = require('expo/metro-config');
+const fs = require('fs');
 const path = require('path');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
+const vendorSharedRoot = path.resolve(projectRoot, 'vendor-shared');
 const sharedPackageRoot = path.resolve(workspaceRoot, 'packages/shared');
 const monorepoNodeModules = path.resolve(workspaceRoot, 'node_modules');
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch the workspace package so Metro can follow pnpm symlinks in both local
-// monorepo development and EAS monorepo builds.
-config.watchFolders = [workspaceRoot, sharedPackageRoot];
+// Prefer vendored shared package for EAS; fall back to workspace package locally.
+const sharedRoot = fs.existsSync(vendorSharedRoot) ? vendorSharedRoot : sharedPackageRoot;
 
-// Let Metro know where to resolve packages
+config.watchFolders = [sharedRoot, path.resolve(projectRoot, 'modules/background-recorder')];
+
 config.resolver.nodeModulesPaths = [path.resolve(projectRoot, 'node_modules'), monorepoNodeModules];
 
 config.resolver.disableHierarchicalLookup = true;
 config.resolver.unstable_enablePackageExports = true;
 
 config.resolver.extraNodeModules = {
+  '@twin/shared': sharedRoot,
   'background-recorder': path.resolve(projectRoot, 'modules/background-recorder'),
 };
 
 const originalResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Fix: AppEntry.js does `../../App` which resolves to the wrong directory in monorepo
   if (
     moduleName === '../../App' &&
     context.originModulePath.includes('node_modules/expo/AppEntry')

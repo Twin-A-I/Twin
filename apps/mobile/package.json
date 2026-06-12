@@ -11,12 +11,13 @@
     "web": "expo start --web",
     "test": "jest",
     "build:preview": "eas build --platform ios --profile preview",
-    "build:production": "eas build --platform ios --profile production"
+    "build:production": "eas build --platform ios --profile production",
+    "eas-build-post-install": "node -e \"const fs=require('fs'); if(!fs.existsSync('vendor-shared/dist/index.js')){console.error('vendor-shared/dist missing'); process.exit(1)}\""
   },
   "dependencies": {
     "@twin/shared": "file:./vendor-shared",
     "@react-native-async-storage/async-storage": "^2.1.0",
-    "background-recorder": "link:./modules/background-recorder",
+    "background-recorder": "file:./modules/background-recorder",
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
     "expo-constants": "~18.0.13",
