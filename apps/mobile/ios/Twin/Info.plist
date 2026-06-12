@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>ai.twin.app</string>
+          <string>com.abdulrahman.twinai</string>
         </array>
       </dict>
     </array>
