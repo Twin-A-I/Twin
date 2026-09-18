@@ -9,7 +9,7 @@ import {
 import { getPresignedDownloadUrl } from '../lib/storage.js';
 import { transcribe, getTranscriptionProvider } from '../lib/ai/index.js';
 import type { TranscriptionOptions } from '../lib/ai/transcription/types.js';
-import { diarizeAudio } from '../lib/ai/diarization.js';
+import { diarizeAudio, type DiarizationResult } from '../lib/ai/diarization.js';
 import { db } from '../lib/db.js';
 import { transcriptionQueue, debriefQueue } from './queues.js';
 import { maybeEnqueueSessionDebrief } from './session-debrief.queue.js';
@@ -64,7 +64,7 @@ function applyDiarizationLabels(
 
   // On-device transcripts have text but no Whisper timestamps. Build segments
   // from diarization timings so YOU/OTHER labels are persisted and shown in UI.
-  return diarizationSegments.map((seg, i, arr) => ({
+  return diarizationSegments.map((seg, _index, arr) => ({
     start: seg.start,
     end: seg.end,
     text: seg.text?.trim() || (arr.length === 1 ? transcriptionResult.text : ''),
@@ -211,11 +211,7 @@ export function startTranscriptionWorker(): Worker<
         await job.updateProgress(70);
 
         // Step 4: Perform speaker diarization
-        let diarizationResult: {
-          num_speakers: number;
-          segments: Array<{ speaker: string }>;
-          speakers?: string[];
-        } | null = null;
+        let diarizationResult: DiarizationResult | null = null;
         let tmpAudioPath: string | null = null;
 
         try {

@@ -13,15 +13,19 @@ import { db } from '../lib/db.js';
 import { setUserSubscription } from '../lib/subscription.js';
 
 // RevenueCat event types that affect the subscription tier
-const PRO_EVENTS = new Set([
+const ACTIVE_PRO_EVENTS = new Set([
   'INITIAL_PURCHASE',
   'RENEWAL',
   'PRODUCT_CHANGE',
   'UNCANCELLATION',
   'TRANSFER',
+  // These events do not remove an active entitlement. RevenueCat will emit an
+  // EXPIRATION event when access actually ends.
+  'CANCELLATION',
+  'BILLING_ISSUE',
 ]);
 
-const FREE_EVENTS = new Set(['CANCELLATION', 'EXPIRATION', 'BILLING_ISSUE']);
+const FREE_EVENTS = new Set(['EXPIRATION', 'REFUND']);
 
 interface RevenueCatWebhookBody {
   event: {
@@ -32,6 +36,23 @@ interface RevenueCatWebhookBody {
   };
 }
 
+export function getSubscriptionUpdate(event: RevenueCatWebhookBody['event']): {
+  tier: 'FREE' | 'PRO';
+  expiresAt: Date | null;
+} | null {
+  const expiresAt = event.expiration_at_ms ? new Date(event.expiration_at_ms) : null;
+
+  if (ACTIVE_PRO_EVENTS.has(event.type)) {
+    return { tier: 'PRO', expiresAt };
+  }
+
+  if (FREE_EVENTS.has(event.type)) {
+    return { tier: 'FREE', expiresAt: null };
+  }
+
+  return null;
+}
+
 export const webhookRoutes: FastifyPluginAsync = async (app) => {
   /**
    * POST /webhooks/revenuecat
@@ -40,11 +61,14 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: RevenueCatWebhookBody }>('/webhooks/revenuecat', async (request, reply) => {
     // Verify shared secret
     const secret = process.env.REVENUECAT_WEBHOOK_SECRET;
-    if (secret) {
-      const authHeader = request.headers['authorization'];
-      if (authHeader !== secret) {
-        return reply.status(401).send({ error: 'Unauthorized' });
-      }
+    if (!secret) {
+      request.log.error('RevenueCat webhook received without server secret configured');
+      return reply.status(503).send({ error: 'Webhook authentication is not configured' });
+    }
+
+    const authHeader = request.headers['authorization'];
+    if (authHeader !== secret) {
+      return reply.status(401).send({ error: 'Unauthorized' });
     }
 
     const body = request.body as RevenueCatWebhookBody;
@@ -52,7 +76,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: 'Invalid payload' });
     }
 
-    const { type, app_user_id, expiration_at_ms } = body.event;
+    const { app_user_id } = body.event;
     const userId = app_user_id;
 
     // Verify user exists
@@ -62,13 +86,13 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(200).send({ ok: true });
     }
 
-    if (PRO_EVENTS.has(type)) {
-      const expiresAt = expiration_at_ms ? new Date(expiration_at_ms) : null;
-      await setUserSubscription(userId, 'PRO', expiresAt);
-      request.log.info({ userId, type, expiresAt }, 'User upgraded to PRO');
-    } else if (FREE_EVENTS.has(type)) {
-      await setUserSubscription(userId, 'FREE', null);
-      request.log.info({ userId, type }, 'User downgraded to FREE');
+    const update = getSubscriptionUpdate(body.event);
+    if (update) {
+      await setUserSubscription(userId, update.tier, update.expiresAt);
+      request.log.info(
+        { userId, type: body.event.type, tier: update.tier, expiresAt: update.expiresAt },
+        'RevenueCat subscription state updated'
+      );
     }
     // Other event types (e.g. TEST, SUBSCRIBER_ALIAS) — acknowledge, no action
 

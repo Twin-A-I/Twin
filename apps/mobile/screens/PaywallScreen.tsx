@@ -164,7 +164,7 @@ export default function PaywallScreen({ onClose, reason }: PaywallScreenProps) {
           ) : (
             <Text style={styles.ctaText}>
               {selectedPlan === 'monthly'
-                ? 'Start 7-Day Free Trial'
+                ? `Continue — ${monthlyPrice}/mo`
                 : `Get Twin Pro — ${annualPrice}/yr`}
             </Text>
           )}
@@ -172,7 +172,8 @@ export default function PaywallScreen({ onClose, reason }: PaywallScreenProps) {
 
         {selectedPlan === 'monthly' && (
           <Text style={styles.trialNote}>
-            Free for 7 days, then {monthlyPrice}/month. Cancel anytime.
+            Any available free trial or introductory offer will be shown before you confirm your
+            purchase. Cancel anytime.
           </Text>
         )}
 

@@ -93,6 +93,10 @@ const envSchema = z.object({
   // Firebase Auth (optional – omit to keep using x-user-id header)
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+
+  // RevenueCat webhook authentication. Required in production because the
+  // webhook controls server-side access to paid features.
+  REVENUECAT_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 // ============================================
@@ -152,6 +156,12 @@ export function validateEnv(): Env {
   if (env.NODE_ENV === 'production' && !env.FIREBASE_PROJECT_ID) {
     console.error('❌ FIREBASE_PROJECT_ID is required in production');
     console.error('Protected API routes cannot authenticate Firebase ID tokens without it.');
+    process.exit(1);
+  }
+
+  if (env.NODE_ENV === 'production' && !env.REVENUECAT_WEBHOOK_SECRET) {
+    console.error('❌ REVENUECAT_WEBHOOK_SECRET is required in production');
+    console.error('Configure the same Authorization header value in the RevenueCat webhook.');
     process.exit(1);
   }
 
